@@ -49,6 +49,13 @@
 
     <div class="toolbar-sep"></div>
 
+    <span>ขนาดการ์ด:</span>
+    <input type="range" id="card-size" min="200" max="600" value="380" step="10"
+      oninput="setCardSize(this.value)" style="width:90px; cursor:pointer;">
+    <span id="card-size-label" style="font-family:'DM Mono',monospace; font-size:11px; color:var(--accent2); min-width:36px;">380px</span>
+
+    <div class="toolbar-sep"></div>
+
     <span>Camera shortcodes:</span>
     <span class="camera-codes">CU · WS · MS · OTS · POV · ECU</span>
     <span class="frame-count" id="frame-count">0 เฟรม</span>
