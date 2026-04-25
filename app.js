@@ -10,6 +10,7 @@ const CAMERA_TAGS = ['CU', 'WS', 'MS', 'OTS', 'POV', 'ECU', 'LS', 'MCU'];
 let frames        = [];
 let dragSrcIdx    = null;
 let currentRatio  = 'ratio-film';
+let currentCardSize = 380;
 let saveTimer     = null;
 
 /* ── DOM refs ── */
@@ -253,6 +254,7 @@ function createCard(f, i) {
    ════════════════════════════════════════════ */
 
 function setCols(n) {
+  board.style.gridTemplateColumns = ''; // clear slider override
   board.className = 'cols-' + n;
   scheduleSave();
 }
@@ -260,6 +262,16 @@ function setCols(n) {
 function setRatio(r) {
   currentRatio = r;
   renderAll();
+}
+
+function setCardSize(px) {
+  px = Number(px);
+  board.style.gridTemplateColumns = `repeat(auto-fill, minmax(${px}px, 1fr))`;
+  document.getElementById('card-size-label').textContent = px + 'px';
+  // sync slider in case called from loadFromLocal
+  const slider = document.getElementById('card-size');
+  if (slider) slider.value = px;
+  scheduleSave();
 }
 
 function updateDuration() {
@@ -283,11 +295,12 @@ function scheduleSave() {
 
 function saveToLocal() {
   const data = {
-    title:   document.getElementById('project-title').value,
+    title:    document.getElementById('project-title').value,
     frames,
-    ratio:   currentRatio,
-    cols:    document.getElementById('col-select').value,
-    savedAt: new Date().toISOString(),
+    ratio:    currentRatio,
+    cols:     document.getElementById('col-select').value,
+    cardSize: Number(document.getElementById('card-size').value),
+    savedAt:  new Date().toISOString(),
   };
   try {
     localStorage.setItem(LS_KEY, JSON.stringify(data));
@@ -311,6 +324,9 @@ function loadFromLocal() {
     if (data.cols) {
       document.getElementById('col-select').value = data.cols;
       board.className = 'cols-' + data.cols;
+    }
+    if (data.cardSize) {
+      setCardSize(data.cardSize);
     }
     return true;
   } catch (e) {
