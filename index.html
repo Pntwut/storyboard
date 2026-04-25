@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>StoryFrame — Storyboard Creator</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- ── Header ── -->
+  <header>
+    <div class="logo">StoryFrame <span>/ storyboard</span></div>
+
+    <div class="project-title-wrap">
+      <input type="text" id="project-title" value="ชื่อโปรเจกต์" spellcheck="false">
+    </div>
+
+    <div class="header-actions">
+      <div id="total-duration">รวม: 0 วิ</div>
+      <div id="save-indicator">
+        <span id="save-dot"></span>
+        <span id="save-label">—</span>
+      </div>
+      <button class="btn" onclick="openExport()">⬇ Export</button>
+      <button class="btn primary" onclick="addFrame()">+ เพิ่มเฟรม</button>
+    </div>
+  </header>
+
+  <!-- ── Toolbar ── -->
+  <div class="toolbar">
+    <span>คอลัมน์:</span>
+    <select class="toolbar-select" id="col-select" onchange="setCols(this.value)">
+      <option value="2">2 คอลัมน์</option>
+      <option value="3" selected>3 คอลัมน์</option>
+      <option value="4">4 คอลัมน์</option>
+    </select>
+
+    <div class="toolbar-sep"></div>
+
+    <span>อัตราส่วน:</span>
+    <select class="toolbar-select" id="ratio-select" onchange="setRatio(this.value)">
+      <option value="ratio-film" selected>16:9 (ภาพยนตร์)</option>
+      <option value="ratio-classic">4:3 (Classic)</option>
+      <option value="ratio-square">1:1 (Square)</option>
+      <option value="ratio-vertical">9:16 (Vertical)</option>
+    </select>
+
+    <div class="toolbar-sep"></div>
+
+    <span>Camera shortcodes:</span>
+    <span class="camera-codes">CU · WS · MS · OTS · POV · ECU</span>
+    <span class="frame-count" id="frame-count">0 เฟรม</span>
+  </div>
+
+  <!-- ── Board ── -->
+  <main>
+    <div id="board" class="cols-3"></div>
+  </main>
+
+  <!-- ── Export Modal ── -->
+  <div id="export-overlay">
+    <div class="export-modal">
+      <h2>Export สตอรี่บอร์ด</h2>
+      <p>เลือกรูปแบบที่ต้องการ export ครับ</p>
+
+      <div class="export-options">
+        <div class="export-opt" onclick="exportPDF()">
+          <div class="eo-icon">📄</div>
+          <div class="eo-label">PDF</div>
+          <div class="eo-sub">ทุกเฟรมในหน้าเดียว</div>
+        </div>
+        <div class="export-opt" onclick="exportPrint()">
+          <div class="eo-icon">🖨</div>
+          <div class="eo-label">Print</div>
+          <div class="eo-sub">พิมพ์หรือบันทึก PDF</div>
+        </div>
+        <div class="export-opt" onclick="exportJSON()">
+          <div class="eo-icon">💾</div>
+          <div class="eo-label">Save (.json)</div>
+          <div class="eo-sub">บันทึกเพื่อเปิดต่อภายหลัง</div>
+        </div>
+        <div class="export-opt" onclick="document.getElementById('import-file').click()">
+          <div class="eo-icon">📂</div>
+          <div class="eo-label">Load (.json)</div>
+          <div class="eo-sub">โหลดไฟล์ที่บันทึกไว้</div>
+        </div>
+      </div>
+
+      <div class="export-footer">
+        <button class="btn" style="flex:1;" onclick="closeExport()">ปิด</button>
+        <button class="btn danger" onclick="clearLocalData(); closeExport()">🗑 ล้างข้อมูล</button>
+      </div>
+
+      <input type="file" id="import-file" accept=".json" style="display:none" onchange="importJSON(event)">
+    </div>
+  </div>
+
+  <!-- ── Print Area (hidden, shown on print) ── -->
+  <div id="print-area"></div>
+
+  <!-- ── Scripts ── -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="app.js"></script>
+
+</body>
+</html>
