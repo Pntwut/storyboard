@@ -110,6 +110,11 @@ function loadImage(id, input) {
   if (file) readImage(id, file);
 }
 
+function removeImage(id) {
+  updateField(id, 'imageData', null);
+  renderAll();
+}
+
 function readImage(id, file) {
   const reader = new FileReader();
   reader.onload = e => {
@@ -190,9 +195,13 @@ function createCard(f, i) {
         onchange="updateField('${f.id}', 'scene', this.value)">
     </div>
 
-    <div class="frame-image-area ${currentRatio}" onclick="triggerUpload('${f.id}', this)">
+    <div class="frame-image-area ${currentRatio}" ${!f.imageData ? `onclick="triggerUpload('${f.id}', this)"` : ''}>
       ${f.imageData
-        ? `<img src="${f.imageData}" alt="frame">`
+        ? `<img src="${f.imageData}" alt="frame">
+           <div class="image-action-overlay">
+             <button class="img-action-btn" onclick="triggerUpload('${f.id}', this.closest('.frame-image-area'))">🔄 เปลี่ยน</button>
+             <button class="img-action-btn danger" onclick="removeImage('${f.id}')">🗑 ลบ</button>
+           </div>`
         : `<div class="upload-prompt">
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
               <rect x="3" y="3" width="18" height="18" rx="2"/>
@@ -202,8 +211,7 @@ function createCard(f, i) {
             <p>คลิกเพื่ออัปโหลดรูปภาพ<br>หรือลากไฟล์มาวาง</p>
           </div>`
       }
-      <div class="upload-overlay"><span>เปลี่ยนรูปภาพ</span></div>
-      <input type="file" accept="image/*" onchange="loadImage('${f.id}', this)">
+      <input type="file" accept="image/*" onchange="loadImage('${f.id}', this)" style="display:none;">
     </div>
 
     <div class="frame-body">
