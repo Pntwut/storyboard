@@ -558,6 +558,30 @@ function loadMusicFile(input) {
   });
 }
 
+function changeMusic() {
+  document.getElementById('music-change-input').click();
+}
+
+function removeMusic() {
+  if (!audioEl) return;
+  audioEl.pause();
+  audioEl.src = '';
+  audioEl = null;
+  musicLoaded = false;
+  cancelAnimationFrame(seekRafId);
+
+  // Reset UI back to drop state
+  document.getElementById('music-drop-area').classList.remove('has-file');
+  document.getElementById('music-controls').classList.remove('visible');
+  document.getElementById('music-name').textContent = '—';
+  document.getElementById('music-time').textContent = '0:00 / 0:00';
+  document.getElementById('music-seek-fill').style.width = '0%';
+  document.getElementById('btn-play-music').disabled = true;
+  document.getElementById('btn-play-music').textContent = '⏵';
+  document.getElementById('music-file-input').value = '';
+  document.getElementById('music-change-input').value = '';
+}
+
 function toggleMusic() {
   if (!audioEl || !musicLoaded) return;
   if (audioEl.paused) {
