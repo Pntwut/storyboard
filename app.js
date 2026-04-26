@@ -514,6 +514,182 @@ async function exportPDF() {
 
 
 /* ════════════════════════════════════════════
+   PREVIEW MODE
+   ════════════════════════════════════════════ */
+
+let previewIdx      = 0;
+let autoplayTimer   = null;
+let isAutoplaying   = false;
+let progressTimer   = null;
+let progressStart   = null;
+let progressDur     = 0;
+
+function openPreview() {
+  if (!frames.length) { alert('ยังไม่มีเฟรมครับ'); return; }
+  previewIdx = 0;
+  document.getElementById('preview-overlay').classList.add('open');
+  document.getElementById('preview-project-title').textContent =
+    document.getElementById('project-title').value || 'StoryFrame';
+  buildFilmstrip();
+  showPreviewFrame(0);
+}
+
+function closePreview() {
+  document.getElementById('preview-overlay').classList.remove('open');
+  stopAutoplay();
+}
+
+function showPreviewFrame(idx) {
+  previewIdx = Math.max(0, Math.min(idx, frames.length - 1));
+  const f = frames[previewIdx];
+
+  // Image
+  const img   = document.getElementById('preview-img');
+  const noImg = document.getElementById('preview-no-image');
+  if (f.imageData) {
+    img.src = f.imageData;
+    img.classList.add('visible');
+    noImg.style.display = 'none';
+  } else {
+    img.classList.remove('visible');
+    noImg.style.display = 'block';
+  }
+
+  // Counter
+  document.getElementById('preview-frame-counter').textContent =
+    `FRAME ${String(previewIdx + 1).padStart(2, '0')} / ${String(frames.length).padStart(2, '0')}`;
+
+  // Scene
+  document.getElementById('preview-scene').textContent =
+    f.scene ? `฿ ${f.scene}` : '';
+
+  // Camera tags
+  const camEl = document.getElementById('preview-camera-tags');
+  camEl.innerHTML = f.camera.map(t => `<span>${t}</span>`).join('');
+
+  // Dialogue & desc
+  document.getElementById('preview-dialogue').textContent =
+    f.dialogue ? `"${f.dialogue}"` : '';
+  document.getElementById('preview-desc').textContent = f.desc || '';
+
+  // Duration
+  document.getElementById('preview-duration-label').textContent =
+    `⏱ ${f.duration} วินาที`;
+
+  // Arrows
+  document.getElementById('arrow-prev').disabled = previewIdx === 0;
+  document.getElementById('arrow-next').disabled = previewIdx === frames.length - 1;
+
+  // Filmstrip highlight
+  document.querySelectorAll('.filmstrip-thumb').forEach((el, i) => {
+    el.classList.toggle('active', i === previewIdx);
+  });
+
+  // Scroll filmstrip thumb into view
+  const thumb = document.querySelector(`.filmstrip-thumb[data-idx="${previewIdx}"]`);
+  if (thumb) thumb.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+
+  // Progress bar
+  stopProgress();
+  if (isAutoplaying) startProgress(f.duration * 1000);
+}
+
+function prevFrame() {
+  if (previewIdx > 0) showPreviewFrame(previewIdx - 1);
+}
+
+function nextFrame() {
+  if (previewIdx < frames.length - 1) showPreviewFrame(previewIdx + 1);
+  else if (isAutoplaying) stopAutoplay();
+}
+
+/* Filmstrip */
+function buildFilmstrip() {
+  const strip = document.getElementById('preview-filmstrip');
+  strip.innerHTML = frames.map((f, i) => `
+    <div class="filmstrip-thumb" data-idx="${i}" onclick="showPreviewFrame(${i})">
+      ${f.imageData
+        ? `<img src="${f.imageData}" alt="frame ${i+1}">`
+        : `<span class="thumb-empty">—</span>`
+      }
+      <span class="thumb-num">${String(i+1).padStart(2,'0')}</span>
+    </div>
+  `).join('');
+}
+
+/* Autoplay */
+function toggleAutoplay() {
+  isAutoplaying ? stopAutoplay() : startAutoplay();
+}
+
+function startAutoplay() {
+  isAutoplaying = true;
+  document.getElementById('btn-autoplay').classList.add('active');
+  document.getElementById('btn-autoplay').textContent = '⏸ หยุด';
+  scheduleNextFrame();
+}
+
+function stopAutoplay() {
+  isAutoplaying = false;
+  clearTimeout(autoplayTimer);
+  stopProgress();
+  const btn = document.getElementById('btn-autoplay');
+  if (btn) {
+    btn.classList.remove('active');
+    btn.textContent = '⏵ Auto';
+  }
+}
+
+function scheduleNextFrame() {
+  const dur = (frames[previewIdx]?.duration || 3) * 1000;
+  startProgress(dur);
+  autoplayTimer = setTimeout(() => {
+    if (previewIdx < frames.length - 1) {
+      showPreviewFrame(previewIdx + 1);
+      scheduleNextFrame();
+    } else {
+      stopAutoplay();
+    }
+  }, dur);
+}
+
+/* Progress bar animation */
+function startProgress(durationMs) {
+  progressDur   = durationMs;
+  progressStart = performance.now();
+  const fill    = document.getElementById('preview-progress-fill');
+  fill.style.transition = 'none';
+  fill.style.width = '0%';
+  requestAnimationFrame(animateProgress);
+}
+
+function stopProgress() {
+  clearTimeout(autoplayTimer);
+  progressStart = null;
+  const fill = document.getElementById('preview-progress-fill');
+  if (fill) { fill.style.transition = 'none'; fill.style.width = '0%'; }
+}
+
+function animateProgress(now) {
+  if (!progressStart) return;
+  const elapsed = now - progressStart;
+  const pct     = Math.min((elapsed / progressDur) * 100, 100);
+  document.getElementById('preview-progress-fill').style.width = pct + '%';
+  if (pct < 100) requestAnimationFrame(animateProgress);
+}
+
+/* Keyboard navigation */
+document.addEventListener('keydown', e => {
+  const overlay = document.getElementById('preview-overlay');
+  if (!overlay.classList.contains('open')) return;
+  if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { stopAutoplay(); nextFrame(); }
+  if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')   { stopAutoplay(); prevFrame(); }
+  if (e.key === ' ') { e.preventDefault(); toggleAutoplay(); }
+  if (e.key === 'Escape') closePreview();
+});
+
+
+/* ════════════════════════════════════════════
    INIT
    ════════════════════════════════════════════ */
 
