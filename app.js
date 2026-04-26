@@ -514,6 +514,124 @@ async function exportPDF() {
 
 
 /* ════════════════════════════════════════════
+   MUSIC
+   ════════════════════════════════════════════ */
+
+let audioEl       = null;
+let musicLoaded   = false;
+let seekRafId     = null;
+
+function toggleMusicPanel() {
+  const panel = document.getElementById('music-panel');
+  const btn   = document.getElementById('btn-music-toggle');
+  const open  = panel.classList.toggle('open');
+  btn.classList.toggle('active', open);
+}
+
+function loadMusicFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+
+  // Create / replace audio element
+  if (audioEl) { audioEl.pause(); audioEl.src = ''; }
+  audioEl = new Audio();
+  audioEl.src    = URL.createObjectURL(file);
+  audioEl.volume = parseFloat(document.getElementById('music-volume').value);
+  audioEl.loop   = false;
+
+  audioEl.addEventListener('loadedmetadata', () => {
+    musicLoaded = true;
+    document.getElementById('music-name').textContent = file.name.replace(/\.[^/.]+$/, '');
+    document.getElementById('btn-play-music').disabled = false;
+    document.getElementById('btn-play-music').textContent = '⏵';
+    document.getElementById('music-time').textContent =
+      `0:00 / ${formatTime(audioEl.duration)}`;
+
+    // Show controls, hide drop area
+    document.getElementById('music-drop-area').classList.add('has-file');
+    document.getElementById('music-controls').classList.add('visible');
+    startSeekUpdate();
+  });
+
+  audioEl.addEventListener('ended', () => {
+    document.getElementById('btn-play-music').textContent = '⏵';
+  });
+}
+
+function toggleMusic() {
+  if (!audioEl || !musicLoaded) return;
+  if (audioEl.paused) {
+    audioEl.play();
+    document.getElementById('btn-play-music').textContent = '⏸';
+    startSeekUpdate();
+  } else {
+    audioEl.pause();
+    document.getElementById('btn-play-music').textContent = '⏵';
+  }
+}
+
+function setMusicVolume(val) {
+  if (audioEl) audioEl.volume = parseFloat(val);
+}
+
+function seekMusic(e) {
+  if (!audioEl || !musicLoaded) return;
+  const bar  = document.getElementById('music-seek-bar');
+  const rect = bar.getBoundingClientRect();
+  const pct  = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+  audioEl.currentTime = pct * audioEl.duration;
+}
+
+function startSeekUpdate() {
+  cancelAnimationFrame(seekRafId);
+  function tick() {
+    if (!audioEl) return;
+    const pct = audioEl.duration ? (audioEl.currentTime / audioEl.duration) * 100 : 0;
+    document.getElementById('music-seek-fill').style.width = pct + '%';
+    document.getElementById('music-time').textContent =
+      `${formatTime(audioEl.currentTime)} / ${formatTime(audioEl.duration)}`;
+    seekRafId = requestAnimationFrame(tick);
+  }
+  seekRafId = requestAnimationFrame(tick);
+}
+
+function formatTime(sec) {
+  if (!sec || isNaN(sec)) return '0:00';
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60);
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+// Stop music when preview is closed
+const _origClosePreview = closePreview;
+closePreview = function() {
+  _origClosePreview();
+  if (audioEl && !audioEl.paused) {
+    audioEl.pause();
+    document.getElementById('btn-play-music').textContent = '⏵';
+  }
+};
+
+// Drag-and-drop audio file onto music panel
+document.addEventListener('DOMContentLoaded', () => {
+  const dropArea = document.getElementById('music-drop-area');
+  dropArea.addEventListener('dragover', e => { e.preventDefault(); dropArea.style.background = 'var(--surface3)'; });
+  dropArea.addEventListener('dragleave', () => { dropArea.style.background = ''; });
+  dropArea.addEventListener('drop', e => {
+    e.preventDefault();
+    dropArea.style.background = '';
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith('audio/')) {
+      const dt = new DataTransfer();
+      dt.items.add(file);
+      document.getElementById('music-file-input').files = dt.files;
+      loadMusicFile(document.getElementById('music-file-input'));
+    }
+  });
+});
+
+
+/* ════════════════════════════════════════════
    PREVIEW MODE
    ════════════════════════════════════════════ */
 
