@@ -785,3 +785,32 @@ textarea::placeholder { color: var(--text3); }
   gap: 6px;
   flex-shrink: 0;
 }
+
+/* ── Image action overlay (shown on hover when image exists) ── */
+.image-action-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.frame-image-area:hover .image-action-overlay { opacity: 1; }
+
+.img-action-btn {
+  background: rgba(22,22,22,0.9);
+  border: 1px solid var(--border2);
+  color: var(--text);
+  font-family: 'Instrument Sans', sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 6px 14px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.img-action-btn:hover { background: var(--surface3); border-color: var(--accent2); color: var(--accent); }
+.img-action-btn.danger:hover { border-color: var(--danger); color: var(--danger); background: #1a0a0a; }
