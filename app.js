@@ -115,6 +115,51 @@ function removeImage(id) {
   renderAll();
 }
 
+// Paste image from clipboard (Ctrl+V anywhere on page)
+document.addEventListener('paste', e => {
+  const items = e.clipboardData?.items;
+  if (!items) return;
+
+  // Find image item
+  const imageItem = Array.from(items).find(item => item.type.startsWith('image/'));
+  if (!imageItem) return;
+
+  const file = imageItem.getAsFile();
+  if (!file) return;
+
+  // If preview is open — ignore
+  if (document.getElementById('preview-overlay').classList.contains('open')) return;
+
+  // Find which frame card is focused/hovered, fallback to last frame
+  const hovered = document.querySelector('.frame-card:hover');
+  let targetId = null;
+
+  if (hovered) {
+    targetId = hovered.dataset.id;
+  } else if (frames.length > 0) {
+    // paste into last frame that has no image, or just the last frame
+    const empty = frames.find(f => !f.imageData);
+    targetId = empty ? empty.id : frames[frames.length - 1].id;
+  }
+
+  if (!targetId) return;
+  showPasteToast(targetId);
+  readImage(targetId, file);
+});
+
+function showPasteToast(id) {
+  const existing = document.getElementById('paste-toast');
+  if (existing) existing.remove();
+
+  const frame = frames.find(f => f.id === id);
+  const idx   = frames.findIndex(f => f.id === id);
+  const toast = document.createElement('div');
+  toast.id = 'paste-toast';
+  toast.textContent = `📋 วางรูปในเฟรม ${String(idx + 1).padStart(2, '0')}${frame?.scene ? ' · ' + frame.scene : ''}`;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 2200);
+}
+
 function readImage(id, file) {
   const reader = new FileReader();
   reader.onload = e => {
