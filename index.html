@@ -24,6 +24,7 @@
         <span id="save-label">—</span>
       </div>
       <button class="btn" onclick="openExport()">⬇ Export</button>
+      <button class="btn" onclick="openPreview()">▶ Preview</button>
       <button class="btn primary" onclick="addFrame()">+ เพิ่มเฟรม</button>
     </div>
   </header>
@@ -102,6 +103,44 @@
 
       <input type="file" id="import-file" accept=".json" style="display:none" onchange="importJSON(event)">
     </div>
+  </div>
+
+  <!-- ── Preview Modal ── -->
+  <div id="preview-overlay">
+    <div id="preview-topbar">
+      <div id="preview-title-wrap">
+        <span id="preview-project-title"></span>
+        <span id="preview-frame-counter"></span>
+      </div>
+      <div id="preview-controls-top">
+        <button class="preview-btn" id="btn-autoplay" onclick="toggleAutoplay()">⏵ Auto</button>
+        <button class="preview-btn" onclick="closePreview()">✕ ปิด</button>
+      </div>
+    </div>
+
+    <div id="preview-stage">
+      <button class="preview-arrow" id="arrow-prev" onclick="prevFrame()">‹</button>
+
+      <div id="preview-frame-wrap">
+        <div id="preview-image-box">
+          <img id="preview-img" src="" alt="">
+          <div id="preview-no-image">ไม่มีรูปภาพ</div>
+        </div>
+        <div id="preview-progress-bar"><div id="preview-progress-fill"></div></div>
+      </div>
+
+      <button class="preview-arrow" id="arrow-next" onclick="nextFrame()">›</button>
+    </div>
+
+    <div id="preview-info">
+      <div id="preview-scene"></div>
+      <div id="preview-camera-tags"></div>
+      <div id="preview-dialogue"></div>
+      <div id="preview-desc"></div>
+      <div id="preview-duration-label"></div>
+    </div>
+
+    <div id="preview-filmstrip"></div>
   </div>
 
   <!-- ── Print Area (hidden, shown on print) ── -->
