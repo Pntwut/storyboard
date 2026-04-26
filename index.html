@@ -152,7 +152,12 @@
       <div id="music-controls">
         <div id="music-info">
           <span id="music-name">—</span>
-          <span id="music-time">0:00 / 0:00</span>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span id="music-time">0:00 / 0:00</span>
+            <button class="preview-btn" onclick="changeMusic()" title="เปลี่ยนเพลง" style="padding:3px 10px; font-size:11px;">เปลี่ยน</button>
+            <button class="preview-btn" onclick="removeMusic()" title="ลบเพลง" style="padding:3px 10px; font-size:11px; color:var(--danger); border-color:#3d1a1a;">ลบ</button>
+            <input type="file" id="music-change-input" accept="audio/*" style="display:none" onchange="loadMusicFile(this)">
+          </div>
         </div>
         <div id="music-ctrl-row">
           <button class="preview-btn" id="btn-play-music" onclick="toggleMusic()" disabled>⏵</button>
