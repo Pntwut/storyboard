@@ -1,0 +1,6 @@
+{
+  "name": "storyframe",
+  "private": true,
+  "scripts": { "test": "node tests/browser.cjs", "check": "node --check app.js" },
+  "devDependencies": { "playwright": "1.62.1", "pdf-lib": "1.17.1" }
+}

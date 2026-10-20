@@ -1,0 +1,111 @@
+const { chromium } = require('playwright');
+const http = require('http');
+const fs = require('fs');
+const path = require('path');
+const assert = require('node:assert/strict');
+fs.mkdirSync(path.join(__dirname, '../test-results'), {recursive:true});
+const root = path.join(__dirname, '..');
+const server = http.createServer((req,res) => {
+  const name = req.url === '/' ? 'index.html' : req.url.slice(1);
+  const file = path.join(root, name);
+  if (!file.startsWith(root) || !fs.existsSync(file)) {res.writeHead(404).end();return;}
+  res.setHeader('Content-Type', name.endsWith('.js') ? 'text/javascript' : name.endsWith('.css') ? 'text/css' : 'text/html');
+  res.end(fs.readFileSync(file));
+});
+(async () => {
+  await new Promise(resolve => server.listen(8765,'127.0.0.1', resolve));
+  console.log('Server ready; starting browser');
+  const browser = await chromium.launch({headless:true,downloadsPath:path.join(__dirname,'downloads')});
+  console.log('Browser ready');
+  const page = await browser.newPage({viewport:{width:1440,height:1000}, acceptDownloads:true});
+  const errors=[];
+  page.on('pageerror', e => errors.push(e.message));
+  page.on('dialog', d => { console.log('Dialog: '+d.message()); d.dismiss(); });
+  await page.goto('http://127.0.0.1:8765');
+  assert.equal(await page.locator('.frame-card').count(),3);
+  await page.getByRole('button',{name:'+ เพิ่มเฟรม',exact:true}).click();
+  assert.equal(await page.locator('.frame-card').count(),4);
+  const card=page.locator('.frame-card').last();
+  await card.locator('.frame-scene-label input').fill('ฉากทดสอบ');
+  await card.locator('[id^="imagePrompt-"]').fill('ภาพแนวตั้ง แสงเย็น');
+  await card.locator('[id^="videoPrompt-"]').fill('เดินผ่านหน้าต่าง');
+  await card.locator('[id^="cameraMovement-"]').fill('Dolly in');
+  await card.locator('input[type=number]').fill('0.2');
+  await page.selectOption('#ratio-select','ratio-vertical');
+  await page.evaluate(saveToLocal => window.saveToLocal(), null);
+  await page.reload();
+  assert.equal(await page.locator('.frame-card').count(),4);
+  assert.equal(await page.locator('[id^="imagePrompt-"]').last().inputValue(),'ภาพแนวตั้ง แสงเย็น');
+  assert.equal(await page.locator('#ratio-select').inputValue(),'ratio-vertical');
+  await page.context().grantPermissions(['clipboard-read','clipboard-write']);
+  await page.locator('.frame-card').last().locator('.copy-prompt').first().click();
+  assert.equal(await page.evaluate(()=>navigator.clipboard.readText()),'ภาพแนวตั้ง แสงเย็น');
+  await page.locator('.frame-card').last().getByTitle('ทำสำเนา',{exact:true}).click();
+  assert.equal(await page.locator('.frame-card').count(),5);
+  await page.getByRole('button',{name:'▶ Preview',exact:true}).click();
+  const ratio=await page.locator('#preview-image-box').evaluate(el=>getComputedStyle(el).aspectRatio);
+  assert.ok(ratio.includes('0.5625'));
+  await page.evaluate(()=>{frames.forEach(f=>f.duration=0.1);startAutoplay();});
+  await page.waitForFunction(()=>!isAutoplaying && previewIdx===frames.length-1);
+  await page.locator('#preview-controls-top button').last().click();
+  for (const width of [390,768,1440]) {
+    await page.setViewportSize({width,height:900});
+    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth), 'horizontal overflow at '+width);
+  }
+  await page.setViewportSize({width:390,height:900});
+  await page.screenshot({path:path.join(__dirname,'../test-results/mobile.png'),fullPage:true});
+  // Test PNG and PDF with real libraries if CDN loaded.
+  const libraries=await page.evaluate(()=>!!window.html2canvas&&!!window.jspdf);
+  assert.ok(libraries, 'Existing export CDN libraries must load to validate exports');
+  if (libraries) {
+    await page.getByRole('button',{name:'▶ Preview',exact:true}).click();
+    await page.evaluate(()=>{HTMLAnchorElement.prototype.click=function(){window.exportedPNG=this.href;};});
+    await page.locator('#btn-save-preview').click();
+    await page.waitForFunction(()=>window.exportedPNG);
+    const png=await page.evaluate(()=>window.exportedPNG);
+    assert.ok(png.startsWith('data:image/png;base64,'));
+    fs.writeFileSync(path.join(__dirname,'../test-results/preview-test.png'),Buffer.from(png.split(',')[1],'base64'));
+    await page.locator('#preview-controls-top button').last().click();
+    await page.getByRole('button',{name:'⬇ Export',exact:true}).click();
+    await page.evaluate(()=>{const Original=window.jspdf.jsPDF;window.jspdf.jsPDF=function(options){const pdf=new Original(options);pdf.save=()=>{window.exportedPDF=pdf.output('datauristring');};return pdf;};});
+    await page.locator('#btn-export-pdf').click();
+    await page.waitForFunction(()=>window.exportedPDF,{},{timeout:60000});
+    fs.writeFileSync(path.join(__dirname,'test.pdf'),Buffer.from((await page.evaluate(()=>window.exportedPDF)).split(',')[1],'base64'));
+    assert.ok(fs.statSync(path.join(__dirname,'test.pdf')).size>10000);
+    const {PDFDocument}=require('pdf-lib');
+    const parsed=await PDFDocument.load(fs.readFileSync(path.join(__dirname,'test.pdf')));
+    assert.equal(parsed.getPageCount(),5);
+  }
+  // Legacy JSON import retains images, dialogue, camera tags and extension fields.
+  const legacy={title:'Legacy ภาษาไทย',frames:[{id:'legacy',scene:'Old scene',desc:'คำอธิบายเดิม',dialogue:'บทพูดเดิม',camera:['WS'],duration:4,imageData:'data:image/png;base64,'+fs.readFileSync(path.join(__dirname,'../test-results/preview-test.png')).toString('base64'),extension:{keep:true}}]};
+  await page.locator('#import-file').setInputFiles({name:'legacy.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(legacy))});
+  await page.waitForFunction(()=>frames.length===1&&frames[0].id==='legacy');
+  assert.equal(await page.locator('.frame-card img').count(),1);
+  assert.equal(await page.locator('.frame-card .dialogue').inputValue(),'บทพูดเดิม');
+  assert.equal(await page.evaluate(()=>frames[0].extension.keep),true);
+  await page.locator('.camera-tag').filter({hasText:/^CU$/}).click();
+  assert.deepEqual(await page.evaluate(()=>frames[0].camera),['WS','CU']);
+  // Upload through an empty image area should trigger just one file chooser.
+  await page.getByRole('button',{name:'+ เพิ่มเฟรม',exact:true}).click();
+  let chooserEvents=0;page.on('filechooser',()=>chooserEvents++);
+  const [chooser]=await Promise.all([page.waitForEvent('filechooser'),page.locator('.frame-image-area').last().click()]);
+  await chooser.setFiles(path.join(__dirname,'../test-results/preview-test.png'));
+  await page.waitForFunction(()=>!!frames[1].imageData);
+  assert.equal(chooserEvents,1);
+  await page.locator('.frame-card').last().getByTitle('ขึ้นก่อน',{exact:true}).click();
+  assert.equal(await page.evaluate(()=>frames[1].id),'legacy');
+  const pngData=await page.evaluate(()=>frames[0].imageData);
+  assert.ok(pngData.startsWith('data:image/png;base64,'));
+  // Empty saved boards and invalid storage must survive reload.
+  await page.evaluate(()=>{frames=[];saveToLocal();});
+  await page.reload();
+  assert.equal(await page.locator('.frame-card').count(),0);
+  await page.addInitScript(()=>localStorage.setItem('storyframe_data','{broken'));
+  await page.reload();
+  await page.waitForTimeout(1000);
+  assert.equal(await page.evaluate(()=>localStorage.getItem('storyframe_data')),'{broken');
+  assert.deepEqual(errors,[]);
+  console.log(JSON.stringify({passed:true,libraries,checks:['defaults','add','duplicate','new fields persist','9:16 preview','autoplay reaches end','responsive widths','empty board','corrupt storage preservation','no page errors']}));
+  await browser.close();
+  server.close();
+})().catch(error=>{console.error(error);server.close();process.exit(1);});
