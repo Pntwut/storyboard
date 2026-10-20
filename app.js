@@ -12,6 +12,7 @@ let dragSrcIdx    = null;
 let currentRatio  = 'ratio-film';
 let currentCardSize = 380;
 let saveTimer     = null;
+let storageLoadFailed = false;
 
 /* ── DOM refs ── */
 const board = document.getElementById('board');
@@ -21,13 +22,55 @@ const board = document.getElementById('board');
    UTILS
    ════════════════════════════════════════════ */
 
+
+function normalizeFrame(data) {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('Invalid frame');
+  return {
+    ...data,
+    id: typeof data.id === 'string' && /^[a-zA-Z0-9_-]+$/.test(data.id) ? data.id : genId(),
+    scene: String(data.scene ?? ''), dialogue: String(data.dialogue ?? ''),
+    desc: String(data.desc ?? ''), imagePrompt: String(data.imagePrompt ?? ''),
+    videoPrompt: String(data.videoPrompt ?? ''), cameraMovement: String(data.cameraMovement ?? ''),
+    imageData: typeof data.imageData === 'string' ? data.imageData : null,
+    camera: Array.isArray(data.camera) ? data.camera.map(String) : [],
+    duration: validDuration(data.duration),
+  };
+}
+function validDuration(value) {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? Math.min(n, 999) : 3;
+}
+function normalizeFrames(items) {
+  if (!Array.isArray(items)) throw new Error('Invalid frames');
+  const ids = new Set();
+  return items.map(item => {
+    const frame = normalizeFrame(item);
+    if (ids.has(frame.id)) frame.id = genId();
+    ids.add(frame.id);
+    return frame;
+  });
+}
+function ratioValue() {
+  return ({'ratio-film':16/9, 'ratio-square':1, 'ratio-vertical':9/16, 'ratio-classic':4/3})[currentRatio] || 16/9;
+}
+async function copyPrompt(id, field, button) {
+  const value = frames.find(f => f.id === id)?.[field] || '';
+  try {
+    await navigator.clipboard.writeText(value);
+    button.textContent = 'คัดลอกแล้ว';
+    setTimeout(() => button.textContent = 'คัดลอก', 1500);
+  } catch {
+    window.prompt('คัดลอก Prompt', value);
+  }
+}
+
 function genId() {
   return 'f' + Date.now() + Math.random().toString(36).slice(2, 6);
 }
 
 function escHtml(s) {
   if (!s) return '';
-  return s
+  return String(s)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
@@ -40,16 +83,8 @@ function escHtml(s) {
    ════════════════════════════════════════════ */
 
 function addFrame(data) {
-  const frame = data || {
-    id:       genId(),
-    scene:    '',
-    imageData: null,
-    dialogue: '',
-    desc:     '',
-    camera:   [],
-    duration: 3,
-  };
-  if (!data) frames.push(frame);
+  const frame = normalizeFrame(data || {});
+  frames.push(frame);
   renderAll();
 }
 
@@ -78,7 +113,7 @@ function moveFrame(id, dir) {
 function updateField(id, field, value) {
   const frame = frames.find(f => f.id === id);
   if (!frame) return;
-  frame[field] = value;
+  frame[field] = field === 'duration' ? validDuration(value) : value;
   if (field === 'duration') updateDuration();
   scheduleSave();
 }
@@ -93,6 +128,7 @@ function toggleCamera(id, tag, el) {
     frame.camera.push(tag);
     el.classList.add('active');
   }
+  el.setAttribute('aria-pressed', frame.camera.includes(tag));
   scheduleSave();
 }
 
@@ -206,10 +242,11 @@ function createCard(f, i) {
   // Drag events
   card.addEventListener('dragstart', e => {
     dragSrcIdx = i;
+    if (e.target.closest('input, textarea, button') || document.activeElement?.matches('input, textarea')) { e.preventDefault(); return; }
     card.classList.add('dragging');
     e.dataTransfer.effectAllowed = 'move';
   });
-  card.addEventListener('dragend',   () => card.classList.remove('dragging'));
+  card.addEventListener('dragend',   () => { card.classList.remove('dragging'); dragSrcIdx = null; });
   card.addEventListener('dragover',  e => { e.preventDefault(); card.classList.add('drag-over'); });
   card.addEventListener('dragleave', () => card.classList.remove('drag-over'));
   card.addEventListener('drop', e => {
@@ -237,12 +274,12 @@ function createCard(f, i) {
       <input type="text"
         placeholder="ชื่อฉาก / Scene label"
         value="${escHtml(f.scene)}"
-        onchange="updateField('${f.id}', 'scene', this.value)">
+        oninput="updateField('${f.id}', 'scene', this.value)">
     </div>
 
     <div class="frame-image-area ${currentRatio}" ${!f.imageData ? `onclick="triggerUpload('${f.id}', this)"` : ''}>
       ${f.imageData
-        ? `<img src="${f.imageData}" alt="frame">
+        ? `<img src="${escHtml(f.imageData)}" alt="frame">
            <div class="image-action-overlay">
              <button class="img-action-btn" onclick="triggerUpload('${f.id}', this.closest('.frame-image-area'))">🔄 เปลี่ยน</button>
              <button class="img-action-btn danger" onclick="removeImage('${f.id}')">🗑 ลบ</button>
@@ -256,33 +293,40 @@ function createCard(f, i) {
             <p>คลิกเพื่ออัปโหลดรูปภาพ<br>หรือลากไฟล์มาวาง</p>
           </div>`
       }
-      <input type="file" accept="image/*" onchange="loadImage('${f.id}', this)" style="display:none;">
+      <input type="file" onclick="event.stopPropagation()" accept="image/*" onchange="loadImage('${f.id}', this)" style="display:none;">
     </div>
 
     <div class="frame-body">
       <div class="field-label">บทพูด / Dialogue</div>
       <textarea class="dialogue"
         placeholder='"บทพูดของตัวละคร..."'
-        onchange="updateField('${f.id}', 'dialogue', this.value)">${escHtml(f.dialogue)}</textarea>
+        oninput="updateField('${f.id}', 'dialogue', this.value)">${escHtml(f.dialogue)}</textarea>
 
-      <div class="field-label" style="margin-top:8px;">คำบรรยาย / Action</div>
+      <div class="field-label" style="margin-top:8px;">คำอธิบายฉาก / Action</div>
       <textarea class="desc"
         placeholder="อธิบายภาพ, การเคลื่อนไหว, แสง..."
-        onchange="updateField('${f.id}', 'desc', this.value)">${escHtml(f.desc)}</textarea>
+        oninput="updateField('${f.id}', 'desc', this.value)">${escHtml(f.desc)}</textarea>
 
       <div class="field-label" style="margin-top:8px;">Camera Shot</div>
       <div class="camera-notes" id="cam-${f.id}">
         ${CAMERA_TAGS.map(t =>
-          `<span class="camera-tag${f.camera.includes(t) ? ' active' : ''}"
-            onclick="toggleCamera('${f.id}', '${t}', this)">${t}</span>`
+          `<button type="button" aria-pressed="${f.camera.includes(t)}" class="camera-tag${f.camera.includes(t) ? ' active' : ''}"
+            onclick="toggleCamera('${f.id}', '${t}', this)">${t}</button>`
         ).join('')}
       </div>
 
+
+      ${['imagePrompt', 'videoPrompt', 'cameraMovement'].map((field, index) => `
+        <label class="field-label prompt-label" for="${field}-${f.id}">${['Image Prompt', 'Video Prompt', 'Camera Movement'][index]}</label>
+        <textarea class="desc" id="${field}-${f.id}"
+          oninput="updateField('${f.id}', '${field}', this.value)">${escHtml(f[field])}</textarea>
+        ${index < 2 ? `<button class="btn copy-prompt" onclick="copyPrompt('${f.id}', '${field}', this)">คัดลอก</button>` : ''}
+      `).join('')}
       <div class="duration-row">
         <label>⏱ ระยะเวลา</label>
-        <input type="number" min="1" max="999"
+        <input type="number" min="0.1" max="999" step="0.1"
           value="${f.duration}"
-          onchange="updateField('${f.id}', 'duration', +this.value)">
+          oninput="updateField('${f.id}', 'duration', +this.value)">
         <label>วินาที</label>
       </div>
     </div>
@@ -319,7 +363,7 @@ function setRatio(r) {
 
 function setCardSize(px) {
   px = Number(px);
-  board.style.gridTemplateColumns = `repeat(auto-fill, minmax(${px}px, 1fr))`;
+  board.style.gridTemplateColumns = `repeat(auto-fill, minmax(min(100%, ${px}px), 1fr))`;
   document.getElementById('card-size-label').textContent = px + 'px';
   // sync slider in case called from loadFromLocal
   const slider = document.getElementById('card-size');
@@ -347,6 +391,7 @@ function scheduleSave() {
 }
 
 function saveToLocal() {
+  if (storageLoadFailed) { setSaveStatus('error'); return; }
   const data = {
     title:    document.getElementById('project-title').value,
     frames,
@@ -368,9 +413,9 @@ function loadFromLocal() {
     const raw = localStorage.getItem(LS_KEY);
     if (!raw) return false;
     const data = JSON.parse(raw);
-    if (data.title)  document.getElementById('project-title').value = data.title;
-    if (data.frames?.length) frames = data.frames;
-    if (data.ratio) {
+    if (data.title !== undefined) document.getElementById('project-title').value = String(data.title);
+    frames = normalizeFrames(data.frames);
+    if (['ratio-film', 'ratio-classic', 'ratio-square', 'ratio-vertical'].includes(data.ratio)) {
       currentRatio = data.ratio;
       document.getElementById('ratio-select').value = data.ratio;
     }
@@ -383,12 +428,15 @@ function loadFromLocal() {
     }
     return true;
   } catch (e) {
+    storageLoadFailed = true;
+    alert('อ่านข้อมูลเดิมไม่สำเร็จ ระบบจะไม่เขียนทับข้อมูลเดิม กรุณาสำรองข้อมูลก่อน');
     return false;
   }
 }
 
 function clearLocalData() {
   if (!confirm('ล้างข้อมูลที่บันทึกไว้ทั้งหมด และเริ่มใหม่ใช่ไหมครับ?')) return;
+  storageLoadFailed = false;
   localStorage.removeItem(LS_KEY);
   frames = [];
   document.getElementById('project-title').value = 'ชื่อโปรเจกต์';
@@ -421,12 +469,14 @@ function closeExport() { document.getElementById('export-overlay').classList.rem
 
 /* Export JSON */
 function exportJSON() {
-  const data = { title: document.getElementById('project-title').value, frames };
+  saveToLocal();
+  const data = { title: document.getElementById('project-title').value, frames, ratio: currentRatio, cols: document.getElementById('col-select').value, cardSize: Number(document.getElementById('card-size').value) };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = (data.title || 'storyboard') + '.json';
   a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
 /* Import JSON */
@@ -437,18 +487,31 @@ function importJSON(e) {
   reader.onload = ev => {
     try {
       const data = JSON.parse(ev.target.result);
-      if (data.title)  document.getElementById('project-title').value = data.title;
-      if (data.frames) { frames = data.frames; renderAll(); }
+      const imported = normalizeFrames(data.frames);
+      if (data.title !== undefined) document.getElementById('project-title').value = String(data.title);
+      frames = imported;
+      if (['ratio-film', 'ratio-classic', 'ratio-square', 'ratio-vertical'].includes(data.ratio)) {
+        currentRatio = data.ratio;
+        document.getElementById('ratio-select').value = currentRatio;
+      }
+      if (['2', '3', '4'].includes(String(data.cols))) {
+        document.getElementById('col-select').value = data.cols;
+        setCols(data.cols);
+      }
+      if (Number(data.cardSize) >= 200 && Number(data.cardSize) <= 600) setCardSize(data.cardSize);
+      renderAll();
+      saveToLocal();
     } catch {
       alert('ไฟล์ไม่ถูกต้อง');
     }
   };
   reader.readAsText(file);
+  e.target.value = '';
   closeExport();
 }
 
 /* Print */
-function exportPrint() {
+async function exportPrint() {
   closeExport();
   const title     = document.getElementById('project-title').value;
   const printArea = document.getElementById('print-area');
@@ -458,111 +521,97 @@ function exportPrint() {
       <div class="print-frame" style="border:1px solid #ccc;border-radius:6px;padding:12px;margin-bottom:16px;display:flex;gap:16px;">
         <div style="flex:0 0 280px;">
           ${f.imageData
-            ? `<img src="${f.imageData}" style="width:100%;border-radius:4px;">`
-            : `<div style="width:100%;aspect-ratio:16/9;background:#eee;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#999;font-size:12px;">ไม่มีรูปภาพ</div>`
+            ? `<img src="${escHtml(f.imageData)}" style="width:100%;border-radius:4px;">`
+            : `<div style="width:100%;aspect-ratio:${ratioValue()};background:#eee;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#999;font-size:12px;">ไม่มีรูปภาพ</div>`
           }
         </div>
         <div style="flex:1;">
-          <div style="font-family:monospace;font-size:11px;color:#999;">FRAME ${String(i + 1).padStart(2, '0')} ${f.scene ? '· ' + f.scene : ''}</div>
-          ${f.camera.length ? `<div style="margin-top:4px;font-size:11px;color:#555;">${f.camera.join(' · ')}</div>` : ''}
+          <div style="font-family:monospace;font-size:11px;color:#999;">FRAME ${String(i + 1).padStart(2, '0')} ${f.scene ? '· ' + escHtml(f.scene) : ''}</div>
+          ${f.camera.length ? `<div style="margin-top:4px;font-size:11px;color:#555;">${escHtml(f.camera.join(' · '))}</div>` : ''}
           ${f.dialogue ? `<blockquote style="border-left:2px solid #aaa;padding-left:8px;margin:8px 0;font-style:italic;font-size:13px;">"${escHtml(f.dialogue)}"</blockquote>` : ''}
           ${f.desc ? `<p style="font-size:12px;color:#444;line-height:1.6;">${escHtml(f.desc)}</p>` : ''}
+${[['Image Prompt', f.imagePrompt], ['Video Prompt', f.videoPrompt], ['Camera Movement', f.cameraMovement]].filter(([,v]) => v).map(([label,value]) => `<p style="white-space:pre-wrap;overflow-wrap:anywhere;">${label}: ${escHtml(value)}</p>`).join('')}
           <p style="font-size:11px;color:#999;margin-top:6px;">⏱ ${f.duration} วินาที</p>
         </div>
       </div>
     `).join('')}
   `;
-  setTimeout(() => window.print(), 100);
+  await document.fonts.ready;
+  await Promise.all(Array.from(printArea.querySelectorAll('img')).map(img => img.decode().catch(() => {})));
+  window.print();
 }
 
 /* Export PDF */
+
+async function captureElement(element) {
+  if (!window.html2canvas) throw new Error('โหลดเครื่องมือส่งออกไม่สำเร็จ กรุณาลองใหม่');
+  await document.fonts.ready;
+  await Promise.all(Array.from(element.querySelectorAll('img')).filter(img => img.getAttribute('src')).map(img => img.decode()));
+  return html2canvas(element, { backgroundColor: '#161616', scale: 2, logging: false });
+}
+async function savePreview() {
+  const button = document.getElementById('btn-save-preview');
+  button.disabled = true;
+  try {
+    saveToLocal();
+    const canvas = await captureElement(document.getElementById('preview-image-box'));
+    const link = document.createElement('a');
+    link.download = (document.getElementById('project-title').value || 'storyboard') + '-frame-' + (previewIdx + 1) + '.png';
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  } catch (error) { alert('บันทึก Preview ไม่สำเร็จ: ' + error.message); }
+  finally { button.disabled = false; }
+}
+
 async function exportPDF() {
-  closeExport();
-  const title    = document.getElementById('project-title').value || 'storyboard';
-  const { jsPDF } = window.jspdf;
-  const pdf      = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-  const pw       = pdf.internal.pageSize.getWidth();
-  const ph       = pdf.internal.pageSize.getHeight();
-  const cols     = 2;
-  const margin   = 10;
-  const colW     = (pw - margin * (cols + 1)) / cols;
-  const imgH     = colW * 9 / 16;
-  const rowH     = imgH + 38;
-
-  // Cover page background
-  pdf.setFillColor(13, 13, 13);
-  pdf.rect(0, 0, pw, ph, 'F');
-
-  pdf.setFont('helvetica', 'bold');
-  pdf.setFontSize(14);
-  pdf.setTextColor(232, 213, 163);
-  pdf.text(title, margin, 12);
-  pdf.setFontSize(8);
-  pdf.setTextColor(90, 84, 80);
-  pdf.text(`${frames.length} frames · Total: ${frames.reduce((s, f) => s + f.duration, 0)}s`, margin, 18);
-
-  let startY = 22;
-
-  for (let i = 0; i < frames.length; i++) {
-    const col = i % cols;
-    const x   = margin + col * (colW + margin);
-    const row = Math.floor(i / cols);
-    const y   = startY + row * (rowH + 8);
-
-    if (y + rowH > ph - margin) {
-      pdf.addPage();
-      pdf.setFillColor(13, 13, 13);
-      pdf.rect(0, 0, pw, ph, 'F');
-      startY = margin;
+  if (!frames.length) { alert('ยังไม่มีเฟรม'); return; }
+  const button = document.getElementById('btn-export-pdf');
+  button.disabled = true;
+  const host = document.createElement('div');
+  host.className = 'pdf-host';
+  document.body.appendChild(host);
+  try {
+    saveToLocal();
+    if (!window.jspdf?.jsPDF) throw new Error('โหลดเครื่องมือ PDF ไม่สำเร็จ กรุณาลองใหม่');
+    const title = document.getElementById('project-title').value || 'storyboard';
+    const pdf = new window.jspdf.jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
+    const pageW = pdf.internal.pageSize.getWidth();
+    const pageH = pdf.internal.pageSize.getHeight();
+    let firstPage = true;
+    for (let i = 0; i < frames.length; i++) {
+      const f = frames[i];
+      host.innerHTML = `
+        <article class="pdf-frame">
+          <h1>${escHtml(title)}</h1>
+          <h2>FRAME ${String(i + 1).padStart(2, '0')} · ${escHtml(f.scene)}</h2>
+          <div class="pdf-image" style="aspect-ratio:${ratioValue()}">
+            ${f.imageData ? `<img src="${escHtml(f.imageData)}" alt="">` : 'ไม่มีรูปภาพ'}
+          </div>
+          <p>Camera Shot: ${escHtml(f.camera.join(' · '))} · Duration: ${f.duration}s</p>
+          ${[['บทพูด / Dialogue', f.dialogue], ['คำอธิบายฉาก / Action', f.desc],
+              ['Image Prompt', f.imagePrompt], ['Video Prompt', f.videoPrompt],
+              ['Camera Movement', f.cameraMovement]]
+            .filter(([,value]) => value).map(([label,value]) =>
+              `<section><h3>${label}</h3><p>${escHtml(value)}</p></section>`).join('')}
+        </article>`;
+      const canvas = await captureElement(host.firstElementChild);
+      const width = pageW - 20;
+      const pixelsPerMM = canvas.width / width;
+      const sliceHeight = Math.floor((pageH - 20) * pixelsPerMM);
+      for (let top = 0; top < canvas.height; top += sliceHeight) {
+        if (!firstPage) pdf.addPage();
+        firstPage = false;
+        const slice = document.createElement('canvas');
+        slice.width = canvas.width;
+        slice.height = Math.min(sliceHeight, canvas.height - top);
+        slice.getContext('2d').drawImage(canvas, 0, top, canvas.width, slice.height, 0, 0, slice.width, slice.height);
+        pdf.addImage(slice.toDataURL('image/png'), 'PNG', 10, 10, width, slice.height / pixelsPerMM, undefined, 'FAST');
+      }
     }
-
-    const fy = startY + (Math.floor(i / cols) % Math.floor((ph - startY - margin) / (rowH + 8))) * (rowH + 8);
-    const f  = frames[i];
-
-    pdf.setFillColor(22, 22, 22);
-    pdf.roundedRect(x, fy, colW, rowH, 2, 2, 'F');
-    pdf.setDrawColor(46, 46, 46);
-    pdf.roundedRect(x, fy, colW, rowH, 2, 2, 'S');
-
-    if (f.imageData) {
-      try { pdf.addImage(f.imageData, 'JPEG', x, fy, colW, imgH); } catch (e) {}
-    } else {
-      pdf.setFillColor(31, 31, 31);
-      pdf.rect(x, fy, colW, imgH, 'F');
-    }
-
-    const textY = fy + imgH + 5;
-
-    pdf.setFontSize(7);
-    pdf.setTextColor(90, 84, 80);
-    pdf.setFont('helvetica', 'normal');
-    pdf.text(
-      `FRAME ${String(i + 1).padStart(2, '0')}${f.scene ? '  ·  ' + f.scene : ''}${f.camera.length ? '  ·  ' + f.camera.join(' ') : ''}`,
-      x + 2, textY
-    );
-
-    if (f.dialogue) {
-      pdf.setFontSize(8);
-      pdf.setTextColor(200, 185, 145);
-      pdf.setFont('helvetica', 'italic');
-      const lines = pdf.splitTextToSize(`"${f.dialogue}"`, colW - 4);
-      pdf.text(lines.slice(0, 2), x + 2, textY + 5);
-    }
-
-    if (f.desc) {
-      pdf.setFontSize(7.5);
-      pdf.setTextColor(160, 152, 144);
-      pdf.setFont('helvetica', 'normal');
-      const lines = pdf.splitTextToSize(f.desc, colW - 4);
-      pdf.text(lines.slice(0, 2), x + 2, textY + (f.dialogue ? 14 : 5));
-    }
-
-    pdf.setFontSize(7);
-    pdf.setTextColor(60, 58, 56);
-    pdf.text(`⏱ ${f.duration}s`, x + colW - 14, fy + rowH - 3);
-  }
-
-  pdf.save(title + '.pdf');
+    pdf.save(title + '.pdf');
+    closeExport();
+  } catch (error) { alert('ส่งออก PDF ไม่สำเร็จ: ' + error.message); }
+  finally { host.remove(); button.disabled = false; }
 }
 
 
@@ -721,6 +770,8 @@ let progressDur     = 0;
 
 function openPreview() {
   if (!frames.length) { alert('ยังไม่มีเฟรมครับ'); return; }
+  saveToLocal();
+  stopAutoplay();
   previewIdx = 0;
   document.getElementById('preview-overlay').classList.add('open');
   document.getElementById('preview-project-title').textContent =
@@ -760,7 +811,7 @@ function showPreviewFrame(idx) {
 
   // Camera tags
   const camEl = document.getElementById('preview-camera-tags');
-  camEl.innerHTML = f.camera.map(t => `<span>${t}</span>`).join('');
+  camEl.innerHTML = [...f.camera, f.cameraMovement].filter(Boolean).map(t => `<span>${escHtml(t)}</span>`).join('');
 
   // Dialogue & desc
   document.getElementById('preview-dialogue').textContent =
@@ -786,7 +837,9 @@ function showPreviewFrame(idx) {
 
   // Progress bar
   stopProgress();
-  if (isAutoplaying) startProgress(f.duration * 1000);
+  document.getElementById('preview-image-box').style.aspectRatio = ratioValue();
+  document.getElementById('preview-frame-wrap').style.maxWidth = `min(900px, calc(100vw - 80px), ${ratioValue() * 45}dvh)`;
+  if (isAutoplaying) scheduleNextFrame();
 }
 
 function prevFrame() {
@@ -802,9 +855,9 @@ function nextFrame() {
 function buildFilmstrip() {
   const strip = document.getElementById('preview-filmstrip');
   strip.innerHTML = frames.map((f, i) => `
-    <div class="filmstrip-thumb" data-idx="${i}" onclick="showPreviewFrame(${i})">
+    <div class="filmstrip-thumb" style="aspect-ratio:${ratioValue()}" data-idx="${i}" onclick="showPreviewFrame(${i})">
       ${f.imageData
-        ? `<img src="${f.imageData}" alt="frame ${i+1}">`
+        ? `<img src="${escHtml(f.imageData)}" alt="frame ${i+1}">`
         : `<span class="thumb-empty">—</span>`
       }
       <span class="thumb-num">${String(i+1).padStart(2,'0')}</span>
@@ -836,12 +889,12 @@ function stopAutoplay() {
 }
 
 function scheduleNextFrame() {
-  const dur = (frames[previewIdx]?.duration || 3) * 1000;
+  clearTimeout(autoplayTimer);
+  const dur = validDuration(frames[previewIdx]?.duration) * 1000;
   startProgress(dur);
   autoplayTimer = setTimeout(() => {
     if (previewIdx < frames.length - 1) {
       showPreviewFrame(previewIdx + 1);
-      scheduleNextFrame();
     } else {
       stopAutoplay();
     }
@@ -850,16 +903,18 @@ function scheduleNextFrame() {
 
 /* Progress bar animation */
 function startProgress(durationMs) {
+  cancelAnimationFrame(progressTimer);
   progressDur   = durationMs;
   progressStart = performance.now();
   const fill    = document.getElementById('preview-progress-fill');
   fill.style.transition = 'none';
   fill.style.width = '0%';
-  requestAnimationFrame(animateProgress);
+  progressTimer = requestAnimationFrame(animateProgress);
 }
 
 function stopProgress() {
   clearTimeout(autoplayTimer);
+  cancelAnimationFrame(progressTimer);
   progressStart = null;
   const fill = document.getElementById('preview-progress-fill');
   if (fill) { fill.style.transition = 'none'; fill.style.width = '0%'; }
@@ -870,7 +925,7 @@ function animateProgress(now) {
   const elapsed = now - progressStart;
   const pct     = Math.min((elapsed / progressDur) * 100, 100);
   document.getElementById('preview-progress-fill').style.width = pct + '%';
-  if (pct < 100) requestAnimationFrame(animateProgress);
+  if (pct < 100) progressTimer = requestAnimationFrame(animateProgress);
 }
 
 /* Keyboard navigation */
@@ -899,9 +954,12 @@ document.getElementById('project-title').addEventListener('input', scheduleSave)
 
 // Boot
 const loaded = loadFromLocal();
-if (loaded && frames.length) {
+if (loaded) {
   renderAll();
   setSaveStatus('saved');
 } else {
   loadDefaults();
 }
+
+window.addEventListener('pagehide', saveToLocal);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') saveToLocal(); });

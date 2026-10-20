@@ -74,11 +74,11 @@
       <p>เลือกรูปแบบที่ต้องการ export ครับ</p>
 
       <div class="export-options">
-        <div class="export-opt" onclick="exportPDF()">
+        <button type="button" id="btn-export-pdf" class="export-opt" onclick="exportPDF()">
           <div class="eo-icon">📄</div>
           <div class="eo-label">PDF</div>
-          <div class="eo-sub">ทุกเฟรมในหน้าเดียว</div>
-        </div>
+          <div class="eo-sub">ครบทุกเฟรม รองรับภาษาไทย</div>
+        </button>
         <div class="export-opt" onclick="exportPrint()">
           <div class="eo-icon">🖨</div>
           <div class="eo-label">Print</div>
@@ -113,6 +113,7 @@
         <span id="preview-frame-counter"></span>
       </div>
       <div id="preview-controls-top">
+        <button class="preview-btn" id="btn-save-preview" onclick="savePreview()">บันทึก Preview PNG</button>
         <button class="preview-btn" id="btn-autoplay" onclick="toggleAutoplay()">⏵ Auto</button>
         <button class="preview-btn" id="btn-music-toggle" onclick="toggleMusicPanel()">♪ เพลง</button>
         <button class="preview-btn" onclick="closePreview()">✕ ปิด</button>

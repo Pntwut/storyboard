@@ -841,3 +841,51 @@ textarea::placeholder { color: var(--text3); }
   from { opacity: 1; }
   to   { opacity: 0; }
 }
+
+/* Responsive editing and export */
+.frame-card { min-width: 0; cursor: default; }
+.frame-header { cursor: grab; }
+.prompt-label { display: block; margin-top: 12px; }
+.copy-prompt { margin-top: 6px; }
+.frame-body textarea { resize: vertical; }
+button.camera-tag { font: inherit; }
+.icon-btn { min-width: 32px; min-height: 32px; color: var(--text2); }
+#preview-overlay { height: 100dvh; overflow-y: auto; }
+#preview-stage { flex: 1 0 auto; }
+#preview-image-box { flex-shrink: 0; }
+#preview-info { overflow-wrap: anywhere; }
+#preview-desc { white-space: pre-wrap; }
+.pdf-host { position: absolute; left: -10000px; top: 0; width: 720px; }
+.pdf-frame { padding: 24px; color: #f0ece4; background: #161616; font-family: sans-serif; }
+.pdf-frame h1 { font-size: 22px; margin-bottom: 10px; }
+.pdf-frame h2 { font-size: 18px; margin-bottom: 14px; }
+.pdf-frame h3 { font-size: 14px; margin-top: 14px; }
+.pdf-frame p { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.6; }
+.pdf-image { display: flex; align-items: center; justify-content: center; background: #222; max-width: 100%; max-height: 650px; margin: auto auto 12px; }
+.pdf-image img { width: 100%; height: 100%; object-fit: contain; }
+@media (max-width: 1000px) {
+  header, .toolbar { flex-wrap: wrap; gap: 12px; }
+  .header-actions { flex-wrap: wrap; justify-content: center; }
+  #board.cols-3, #board.cols-4 { grid-template-columns: repeat(2, minmax(0,1fr)); }
+}
+@media (max-width: 640px) {
+  header { position: static; padding: 12px; }
+  .logo { font-size: 20px; }
+  .project-title-wrap { flex-basis: 100%; order: 1; }
+  #project-title { width: 100%; min-width: 0; }
+  .header-actions { width: 100%; order: 2; }
+  .toolbar { padding: 12px; }
+  .toolbar-sep, .camera-codes { display: none; }
+  main { padding: 12px; overflow-x: visible; }
+  #board, #board.cols-2, #board.cols-3, #board.cols-4 { grid-template-columns: minmax(0,1fr) !important; }
+  .export-modal { min-width: 0; width: calc(100% - 24px); padding: 16px; max-height: 90dvh; overflow: auto; }
+  #preview-topbar, #preview-title-wrap, #preview-controls-top { flex-wrap: wrap; gap: 8px; }
+  #preview-topbar { padding: 12px; }
+  .preview-arrow { padding: 0 8px; font-size: 36px; }
+  #preview-info, #music-controls, #preview-filmstrip { padding-left: 12px; padding-right: 12px; }
+  #music-info, #music-ctrl-row { flex-wrap: wrap; gap: 8px; }
+  #music-name { max-width: 160px; }
+  input, textarea, select.toolbar-select { font-size: 16px; }
+  .btn, .preview-btn, .camera-tag, .img-action-btn { min-height: 40px; }
+  .image-action-overlay { opacity: 1; background: transparent; align-items: flex-end; padding-bottom: 8px; }
+}
