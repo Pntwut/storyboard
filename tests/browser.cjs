@@ -41,7 +41,9 @@ const server = http.createServer((req,res) => {
   await page.locator('#toggle-compact-view').click();
   assert.equal(await page.locator('#toggle-compact-view').getAttribute('aria-pressed'),'true');
   assert.equal(await page.locator('#board').evaluate(el=>el.classList.contains('board-compact')),true);
-  assert.match(await page.locator('.frame-image-area').last().evaluate(el=>getComputedStyle(el).aspectRatio),/16\s*\/\s*9/);
+  assert.match(await page.locator('.frame-image-area').last().evaluate(el=>getComputedStyle(el).aspectRatio),/9\s*\/\s*16/);
+  const verticalThumb=await page.locator('.frame-image-area').last().boundingBox();
+  assert.ok(verticalThumb.height>verticalThumb.width,'compact 9:16 thumbnail should remain portrait');
   await page.evaluate(saveToLocal => window.saveToLocal(), null);
   await page.reload();
   assert.equal(await page.locator('.frame-card').count(),4);
