@@ -23,18 +23,25 @@ const server = http.createServer((req,res) => {
   page.on('dialog', d => { console.log('Dialog: '+d.message()); d.dismiss(); });
   await page.goto('http://127.0.0.1:8765');
   assert.equal(await page.locator('.frame-card').count(),3);
+  assert.equal(await page.locator('.camera-details[open]').count(),0);
   await page.getByRole('button',{name:'+ เพิ่มเฟรม',exact:true}).click();
   assert.equal(await page.locator('.frame-card').count(),4);
   const card=page.locator('.frame-card').last();
   await card.locator('.frame-scene-label input').fill('ฉากทดสอบ');
+  await card.locator('.camera-details summary').click();
+  await card.locator('.camera-tag').filter({hasText:/^OTS$/}).click();
+  await card.locator('[id^="cameraMovement-"]').fill('Dolly in');
+  assert.match(await card.locator('.camera-summary-value').innerText(),/OTS · Dolly in/);
   await card.locator('[id^="imagePrompt-"]').fill('ภาพแนวตั้ง แสงเย็น');
   await card.locator('[id^="videoPrompt-"]').fill('เดินผ่านหน้าต่าง');
-  await card.locator('[id^="cameraMovement-"]').fill('Dolly in');
   await card.locator('input[type=number]').fill('0.2');
   await page.selectOption('#ratio-select','ratio-vertical');
   await page.evaluate(saveToLocal => window.saveToLocal(), null);
   await page.reload();
   assert.equal(await page.locator('.frame-card').count(),4);
+  assert.equal(await page.locator('.camera-details[open]').count(),0);
+  assert.equal(await page.locator('.camera-summary-value').last().innerText(),'OTS · Dolly in');
+  assert.equal(await page.locator('.frame-card').last().locator('[id^="cameraMovement-"]').inputValue(),'Dolly in');
   assert.equal(await page.locator('[id^="imagePrompt-"]').last().inputValue(),'ภาพแนวตั้ง แสงเย็น');
   assert.equal(await page.locator('#ratio-select').inputValue(),'ratio-vertical');
   await page.context().grantPermissions(['clipboard-read','clipboard-write']);
@@ -83,6 +90,7 @@ const server = http.createServer((req,res) => {
   assert.equal(await page.locator('.frame-card img').count(),1);
   assert.equal(await page.locator('.frame-card .dialogue').inputValue(),'บทพูดเดิม');
   assert.equal(await page.evaluate(()=>frames[0].extension.keep),true);
+  await page.locator('.camera-details summary').click();
   await page.locator('.camera-tag').filter({hasText:/^CU$/}).click();
   assert.deepEqual(await page.evaluate(()=>frames[0].camera),['WS','CU']);
   // Upload through an empty image area should trigger just one file chooser.
