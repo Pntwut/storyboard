@@ -19,47 +19,51 @@
 
     <div class="header-actions">
       <div id="total-duration">รวม: 0 วิ</div>
-      <div id="save-indicator">
+      <div id="save-indicator" role="status" aria-live="polite">
         <span id="save-dot"></span>
         <span id="save-label">—</span>
       </div>
-      <button class="btn" onclick="openExport()">⬇ Export</button>
-      <button class="btn" onclick="openPreview()">▶ Preview</button>
-      <button class="btn primary" onclick="addFrame()">+ เพิ่มเฟรม</button>
+      <button class="btn desktop-action" onclick="openExport()">⬇ Export</button>
+      <button class="btn desktop-action" onclick="openPreview()">▶ Preview</button>
+      <button class="btn primary desktop-action" onclick="addFrame()">+ เพิ่มเฟรม</button>
     </div>
   </header>
 
+  <nav id="mobile-action-bar" aria-label="เมนูหลัก">
+    <button class="mobile-action" onclick="openPreview()"><span aria-hidden="true">▶</span> Preview</button>
+    <button class="mobile-action" onclick="openExport()"><span aria-hidden="true">⬇</span> Export</button>
+    <button class="mobile-action primary" onclick="addFrame()"><span aria-hidden="true">＋</span> เพิ่มเฟรม</button>
+  </nav>
+
   <!-- ── Toolbar ── -->
   <div class="toolbar">
-    <span>คอลัมน์:</span>
-    <select class="toolbar-select" id="col-select" onchange="setCols(this.value)">
-      <option value="2">2 คอลัมน์</option>
-      <option value="3" selected>3 คอลัมน์</option>
-      <option value="4">4 คอลัมน์</option>
-    </select>
-
-    <div class="toolbar-sep"></div>
-
-    <span>อัตราส่วน:</span>
-    <select class="toolbar-select" id="ratio-select" onchange="setRatio(this.value)">
-      <option value="ratio-film" selected>16:9 (ภาพยนตร์)</option>
-      <option value="ratio-classic">4:3 (Classic)</option>
-      <option value="ratio-square">1:1 (Square)</option>
-      <option value="ratio-vertical">9:16 (Vertical)</option>
-    </select>
-
-    <div class="toolbar-sep"></div>
-
-    <span>ขนาดการ์ด:</span>
-    <input type="range" id="card-size" min="200" max="600" value="380" step="10"
-      oninput="setCardSize(this.value)" style="width:90px; cursor:pointer;">
-    <span id="card-size-label" style="font-family:'DM Mono',monospace; font-size:11px; color:var(--accent2); min-width:36px;">380px</span>
-
-    <div class="toolbar-sep"></div>
-
-    <span>Camera shortcodes:</span>
-    <span class="camera-codes">CU · WS · MS · OTS · POV · ECU</span>
+    <button type="button" id="toggle-compact-view" class="btn view-toggle" aria-pressed="false" onclick="toggleCompactView()">▤ มุมมองย่อ</button>
     <span class="frame-count" id="frame-count">0 เฟรม</span>
+    <details id="layout-settings" class="layout-settings">
+      <summary>ตั้งค่าหน้ากระดาน</summary>
+      <div class="layout-settings-content">
+        <label for="col-select">คอลัมน์</label>
+        <select class="toolbar-select" id="col-select" onchange="setCols(this.value)">
+          <option value="2">2 คอลัมน์</option>
+          <option value="3" selected>3 คอลัมน์</option>
+          <option value="4">4 คอลัมน์</option>
+        </select>
+        <label for="ratio-select">สัดส่วนภาพตอนดูและส่งออก</label>
+        <select class="toolbar-select" id="ratio-select" onchange="setRatio(this.value)">
+          <option value="ratio-film" selected>16:9 (ภาพยนตร์)</option>
+          <option value="ratio-classic">4:3 (Classic)</option>
+          <option value="ratio-square">1:1 (Square)</option>
+          <option value="ratio-vertical">9:16 (Vertical)</option>
+        </select>
+        <label for="card-size">ความกว้างการ์ด</label>
+        <div class="card-size-control">
+          <input type="range" id="card-size" min="200" max="600" value="380" step="10" oninput="setCardSize(this.value)">
+          <span id="card-size-label">380px</span>
+        </div>
+        <span class="camera-codes-label">Camera shortcodes</span>
+        <span class="camera-codes">CU · WS · MS · OTS · POV · ECU</span>
+      </div>
+    </details>
   </div>
 
   <!-- ── Board ── -->
