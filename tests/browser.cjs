@@ -35,7 +35,13 @@ const server = http.createServer((req,res) => {
   await card.locator('[id^="imagePrompt-"]').fill('ภาพแนวตั้ง แสงเย็น');
   await card.locator('[id^="videoPrompt-"]').fill('เดินผ่านหน้าต่าง');
   await card.locator('input[type=number]').fill('0.2');
+  await page.locator('#layout-settings > summary').click();
   await page.selectOption('#ratio-select','ratio-vertical');
+  await page.locator('#layout-settings > summary').click();
+  await page.locator('#toggle-compact-view').click();
+  assert.equal(await page.locator('#toggle-compact-view').getAttribute('aria-pressed'),'true');
+  assert.equal(await page.locator('#board').evaluate(el=>el.classList.contains('board-compact')),true);
+  assert.match(await page.locator('.frame-image-area').last().evaluate(el=>getComputedStyle(el).aspectRatio),/16\s*\/\s*9/);
   await page.evaluate(saveToLocal => window.saveToLocal(), null);
   await page.reload();
   assert.equal(await page.locator('.frame-card').count(),4);
@@ -44,9 +50,12 @@ const server = http.createServer((req,res) => {
   assert.equal(await page.locator('.frame-card').last().locator('[id^="cameraMovement-"]').inputValue(),'Dolly in');
   assert.equal(await page.locator('[id^="imagePrompt-"]').last().inputValue(),'ภาพแนวตั้ง แสงเย็น');
   assert.equal(await page.locator('#ratio-select').inputValue(),'ratio-vertical');
+  assert.equal(await page.locator('#toggle-compact-view').getAttribute('aria-pressed'),'true');
+  await page.locator('#toggle-compact-view').click();
   await page.context().grantPermissions(['clipboard-read','clipboard-write']);
   await page.locator('.frame-card').last().locator('.copy-prompt').first().click();
   assert.equal(await page.evaluate(()=>navigator.clipboard.readText()),'ภาพแนวตั้ง แสงเย็น');
+  assert.equal(await page.locator('.frame-card').last().locator('.copy-prompt').first().innerText(),'คัดลอกแล้ว ✓');
   await page.locator('.frame-card').last().getByTitle('ทำสำเนา',{exact:true}).click();
   assert.equal(await page.locator('.frame-card').count(),5);
   await page.getByRole('button',{name:'▶ Preview',exact:true}).click();
@@ -58,14 +67,18 @@ const server = http.createServer((req,res) => {
   for (const width of [390,768,1440]) {
     await page.setViewportSize({width,height:900});
     assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth), 'horizontal overflow at '+width);
+    assert.equal(await page.locator('#mobile-action-bar').isVisible(),width<=640);
   }
   await page.setViewportSize({width:390,height:900});
+  const countBeforeMobileAdd=await page.locator('.frame-card').count();
+  await page.locator('#mobile-action-bar').getByRole('button',{name:/เพิ่มเฟรม/}).click();
+  assert.equal(await page.locator('.frame-card').count(),countBeforeMobileAdd+1);
   await page.screenshot({path:path.join(__dirname,'../test-results/mobile.png'),fullPage:true});
   // Test PNG and PDF with real libraries if CDN loaded.
   const libraries=await page.evaluate(()=>!!window.html2canvas&&!!window.jspdf);
   assert.ok(libraries, 'Existing export CDN libraries must load to validate exports');
   if (libraries) {
-    await page.getByRole('button',{name:'▶ Preview',exact:true}).click();
+    await page.locator('#mobile-action-bar').getByRole('button',{name:/Preview/}).click();
     await page.evaluate(()=>{HTMLAnchorElement.prototype.click=function(){window.exportedPNG=this.href;};});
     await page.locator('#btn-save-preview').click();
     await page.waitForFunction(()=>window.exportedPNG);
@@ -73,7 +86,7 @@ const server = http.createServer((req,res) => {
     assert.ok(png.startsWith('data:image/png;base64,'));
     fs.writeFileSync(path.join(__dirname,'../test-results/preview-test.png'),Buffer.from(png.split(',')[1],'base64'));
     await page.locator('#preview-controls-top button').last().click();
-    await page.getByRole('button',{name:'⬇ Export',exact:true}).click();
+    await page.locator('#mobile-action-bar').getByRole('button',{name:/Export/}).click();
     await page.evaluate(()=>{const Original=window.jspdf.jsPDF;window.jspdf.jsPDF=function(options){const pdf=new Original(options);pdf.save=()=>{window.exportedPDF=pdf.output('datauristring');};return pdf;};});
     await page.locator('#btn-export-pdf').click();
     await page.waitForFunction(()=>window.exportedPDF,{},{timeout:60000});
@@ -81,7 +94,7 @@ const server = http.createServer((req,res) => {
     assert.ok(fs.statSync(path.join(__dirname,'test.pdf')).size>10000);
     const {PDFDocument}=require('pdf-lib');
     const parsed=await PDFDocument.load(fs.readFileSync(path.join(__dirname,'test.pdf')));
-    assert.equal(parsed.getPageCount(),5);
+    assert.equal(parsed.getPageCount(),6);
   }
   // Legacy JSON import retains images, dialogue, camera tags and extension fields.
   const legacy={title:'Legacy ภาษาไทย',frames:[{id:'legacy',scene:'Old scene',desc:'คำอธิบายเดิม',dialogue:'บทพูดเดิม',camera:['WS'],duration:4,imageData:'data:image/png;base64,'+fs.readFileSync(path.join(__dirname,'../test-results/preview-test.png')).toString('base64'),extension:{keep:true}}]};
@@ -94,7 +107,7 @@ const server = http.createServer((req,res) => {
   await page.locator('.camera-tag').filter({hasText:/^CU$/}).click();
   assert.deepEqual(await page.evaluate(()=>frames[0].camera),['WS','CU']);
   // Upload through an empty image area should trigger just one file chooser.
-  await page.getByRole('button',{name:'+ เพิ่มเฟรม',exact:true}).click();
+  await page.locator('#mobile-action-bar').getByRole('button',{name:/เพิ่มเฟรม/}).click();
   let chooserEvents=0;page.on('filechooser',()=>chooserEvents++);
   const [chooser]=await Promise.all([page.waitForEvent('filechooser'),page.locator('.frame-image-area').last().click()]);
   await chooser.setFiles(path.join(__dirname,'../test-results/preview-test.png'));
@@ -113,7 +126,7 @@ const server = http.createServer((req,res) => {
   await page.waitForTimeout(1000);
   assert.equal(await page.evaluate(()=>localStorage.getItem('storyframe_data')),'{broken');
   assert.deepEqual(errors,[]);
-  console.log(JSON.stringify({passed:true,libraries,checks:['defaults','add','duplicate','new fields persist','9:16 preview','autoplay reaches end','responsive widths','empty board','corrupt storage preservation','no page errors']}));
+  console.log(JSON.stringify({passed:true,libraries,checks:['defaults','add','duplicate','new fields persist','9:16 preview','compact view stays independent of preview ratio','mobile action bar','copy and save states','autoplay reaches end','responsive widths','empty board','corrupt storage preservation','no page errors']}));
   await browser.close();
   server.close();
 })().catch(error=>{console.error(error);server.close();process.exit(1);});

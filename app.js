@@ -11,6 +11,7 @@ let frames        = [];
 let dragSrcIdx    = null;
 let currentRatio  = 'ratio-film';
 let currentCardSize = 380;
+let compactView = false;
 let saveTimer     = null;
 let storageLoadFailed = false;
 
@@ -55,12 +56,14 @@ function ratioValue() {
 }
 async function copyPrompt(id, field, button) {
   const value = frames.find(f => f.id === id)?.[field] || '';
+  const label = field === 'imagePrompt' ? 'คัดลอก Image Prompt' : 'คัดลอก Video Prompt';
   try {
     await navigator.clipboard.writeText(value);
-    button.textContent = 'คัดลอกแล้ว';
-    setTimeout(() => button.textContent = 'คัดลอก', 1500);
+    button.textContent = 'คัดลอกแล้ว ✓';
+    button.setAttribute('aria-live', 'polite');
+    setTimeout(() => button.textContent = label, 1500);
   } catch {
-    window.prompt('คัดลอก Prompt', value);
+    window.prompt(`คัดลอก ${field === 'imagePrompt' ? 'Image Prompt' : 'Video Prompt'}`, value);
   }
 }
 
@@ -271,11 +274,12 @@ function createCard(f, i) {
   card.innerHTML = `
     <div class="frame-header">
       <span class="frame-number">FRAME ${String(i + 1).padStart(2, '0')}</span>
+      <span class="compact-duration">⏱ ${f.duration}s</span>
       <div class="frame-actions">
-        <button class="icon-btn" title="ทำสำเนา"  onclick="duplicateFrame('${f.id}')">⧉</button>
-        <button class="icon-btn" title="ขึ้นก่อน"  onclick="moveFrame('${f.id}', -1)">↑</button>
-        <button class="icon-btn" title="ลงหลัง"   onclick="moveFrame('${f.id}', 1)">↓</button>
-        <button class="icon-btn red" title="ลบ"   onclick="deleteFrame('${f.id}')">✕</button>
+        <button class="icon-btn" type="button" title="ทำสำเนา" aria-label="ทำสำเนาเฟรม ${i + 1}" onclick="duplicateFrame('${f.id}')">⧉</button>
+        <button class="icon-btn" type="button" title="ขึ้นก่อน" aria-label="ย้ายเฟรม ${i + 1} ขึ้นก่อน" onclick="moveFrame('${f.id}', -1)">↑</button>
+        <button class="icon-btn" type="button" title="ลงหลัง" aria-label="ย้ายเฟรม ${i + 1} ลงหลัง" onclick="moveFrame('${f.id}', 1)">↓</button>
+        <button class="icon-btn red" type="button" title="ลบ" aria-label="ลบเฟรม ${i + 1}" onclick="deleteFrame('${f.id}')">✕</button>
       </div>
     </div>
 
@@ -337,7 +341,7 @@ function createCard(f, i) {
         <label class="field-label prompt-label" for="${field}-${f.id}">${['Image Prompt', 'Video Prompt'][index]}</label>
         <textarea class="desc" id="${field}-${f.id}"
           oninput="updateField('${f.id}', '${field}', this.value)">${escHtml(f[field])}</textarea>
-        ${index < 2 ? `<button class="btn copy-prompt" onclick="copyPrompt('${f.id}', '${field}', this)">คัดลอก</button>` : ''}
+        ${index < 2 ? `<button class="btn copy-prompt" aria-label="คัดลอก ${['Image Prompt', 'Video Prompt'][index]}" onclick="copyPrompt('${f.id}', '${field}', this)">คัดลอก ${['Image Prompt', 'Video Prompt'][index]}</button>` : ''}
       `).join('')}
       <div class="duration-row">
         <label>⏱ ระยะเวลา</label>
@@ -368,8 +372,9 @@ function createCard(f, i) {
    ════════════════════════════════════════════ */
 
 function setCols(n) {
-  board.style.gridTemplateColumns = ''; // clear slider override
-  board.className = 'cols-' + n;
+  board.style.gridTemplateColumns = '';
+  board.classList.remove('cols-2', 'cols-3', 'cols-4');
+  board.classList.add('cols-' + n);
   scheduleSave();
 }
 
@@ -385,6 +390,15 @@ function setCardSize(px) {
   // sync slider in case called from loadFromLocal
   const slider = document.getElementById('card-size');
   if (slider) slider.value = px;
+  scheduleSave();
+}
+
+function toggleCompactView() {
+  compactView = !compactView;
+  board.classList.toggle('board-compact', compactView);
+  const button = document.getElementById('toggle-compact-view');
+  button.setAttribute('aria-pressed', String(compactView));
+  button.textContent = compactView ? '▤ ออกจากมุมมองย่อ' : '▤ มุมมองย่อ';
   scheduleSave();
 }
 
@@ -415,6 +429,7 @@ function saveToLocal() {
     ratio:    currentRatio,
     cols:     document.getElementById('col-select').value,
     cardSize: Number(document.getElementById('card-size').value),
+    compactView,
     savedAt:  new Date().toISOString(),
   };
   try {
@@ -438,10 +453,18 @@ function loadFromLocal() {
     }
     if (data.cols) {
       document.getElementById('col-select').value = data.cols;
-      board.className = 'cols-' + data.cols;
+      board.classList.remove('cols-2', 'cols-3', 'cols-4');
+      board.classList.add('cols-' + data.cols);
     }
     if (data.cardSize) {
       setCardSize(data.cardSize);
+    }
+    if (data.compactView === true) {
+      compactView = true;
+      board.classList.add('board-compact');
+      const button = document.getElementById('toggle-compact-view');
+      button.setAttribute('aria-pressed', 'true');
+      button.textContent = '▤ ออกจากมุมมองย่อ';
     }
     return true;
   } catch (e) {
@@ -463,16 +486,21 @@ function clearLocalData() {
 function setSaveStatus(status) {
   const dot   = document.getElementById('save-dot');
   const label = document.getElementById('save-label');
+  const indicator = document.getElementById('save-indicator');
+  indicator.dataset.state = status;
   if (status === 'saved') {
     dot.style.background = '#4caf50';
     const now = new Date();
     label.textContent = `บันทึกแล้ว ${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`;
+    indicator.title = 'ข้อมูลถูกบันทึกไว้ในอุปกรณ์นี้แล้ว';
   } else if (status === 'saving') {
     dot.style.background = 'var(--accent2)';
     label.textContent = 'กำลังบันทึก...';
+    indicator.title = 'กำลังบันทึกการเปลี่ยนแปลง';
   } else {
     dot.style.background = 'var(--danger)';
     label.textContent = 'บันทึกไม่ได้';
+    indicator.title = 'บันทึกข้อมูลในอุปกรณ์นี้ไม่สำเร็จ';
   }
 }
 
@@ -487,7 +515,7 @@ function closeExport() { document.getElementById('export-overlay').classList.rem
 /* Export JSON */
 function exportJSON() {
   saveToLocal();
-  const data = { title: document.getElementById('project-title').value, frames, ratio: currentRatio, cols: document.getElementById('col-select').value, cardSize: Number(document.getElementById('card-size').value) };
+  const data = { title: document.getElementById('project-title').value, frames, ratio: currentRatio, cols: document.getElementById('col-select').value, cardSize: Number(document.getElementById('card-size').value), compactView };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -516,6 +544,11 @@ function importJSON(e) {
         setCols(data.cols);
       }
       if (Number(data.cardSize) >= 200 && Number(data.cardSize) <= 600) setCardSize(data.cardSize);
+      compactView = data.compactView === true;
+      board.classList.toggle('board-compact', compactView);
+      const compactButton = document.getElementById('toggle-compact-view');
+      compactButton.setAttribute('aria-pressed', String(compactView));
+      compactButton.textContent = compactView ? '▤ ออกจากมุมมองย่อ' : '▤ มุมมองย่อ';
       renderAll();
       saveToLocal();
     } catch {
