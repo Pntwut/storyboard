@@ -129,7 +129,16 @@ function toggleCamera(id, tag, el) {
     el.classList.add('active');
   }
   el.setAttribute('aria-pressed', frame.camera.includes(tag));
+  updateCameraSummary(id);
   scheduleSave();
+}
+
+function updateCameraSummary(id) {
+  const frame = frames.find(f => f.id === id);
+  const summary = document.getElementById(`camera-summary-${id}`);
+  if (!frame || !summary) return;
+  const selections = [...frame.camera, frame.cameraMovement].filter(Boolean);
+  summary.textContent = selections.length ? selections.join(' · ') : 'ยังไม่ได้ตั้งค่า';
 }
 
 
@@ -307,17 +316,25 @@ function createCard(f, i) {
         placeholder="อธิบายภาพ, การเคลื่อนไหว, แสง..."
         oninput="updateField('${f.id}', 'desc', this.value)">${escHtml(f.desc)}</textarea>
 
-      <div class="field-label" style="margin-top:8px;">Camera Shot</div>
-      <div class="camera-notes" id="cam-${f.id}">
-        ${CAMERA_TAGS.map(t =>
-          `<button type="button" aria-pressed="${f.camera.includes(t)}" class="camera-tag${f.camera.includes(t) ? ' active' : ''}"
-            onclick="toggleCamera('${f.id}', '${t}', this)">${t}</button>`
-        ).join('')}
-      </div>
+      <details class="camera-details">
+        <summary>
+          <span>รายละเอียดกล้อง</span>
+          <span class="camera-summary-value" id="camera-summary-${f.id}">${escHtml([...f.camera, f.cameraMovement].filter(Boolean).join(' · ') || 'ยังไม่ได้ตั้งค่า')}</span>
+        </summary>
+        <div class="field-label">Camera Shot</div>
+        <div class="camera-notes" id="cam-${f.id}">
+          ${CAMERA_TAGS.map(t =>
+            `<button type="button" aria-pressed="${f.camera.includes(t)}" class="camera-tag${f.camera.includes(t) ? ' active' : ''}"
+              onclick="toggleCamera('${f.id}', '${t}', this)">${t}</button>`
+          ).join('')}
+        </div>
+        <label class="field-label camera-movement-label" for="cameraMovement-${f.id}">Camera Movement</label>
+        <textarea class="desc" id="cameraMovement-${f.id}"
+          oninput="updateField('${f.id}', 'cameraMovement', this.value); updateCameraSummary('${f.id}')">${escHtml(f.cameraMovement)}</textarea>
+      </details>
 
-
-      ${['imagePrompt', 'videoPrompt', 'cameraMovement'].map((field, index) => `
-        <label class="field-label prompt-label" for="${field}-${f.id}">${['Image Prompt', 'Video Prompt', 'Camera Movement'][index]}</label>
+      ${['imagePrompt', 'videoPrompt'].map((field, index) => `
+        <label class="field-label prompt-label" for="${field}-${f.id}">${['Image Prompt', 'Video Prompt'][index]}</label>
         <textarea class="desc" id="${field}-${f.id}"
           oninput="updateField('${f.id}', '${field}', this.value)">${escHtml(f[field])}</textarea>
         ${index < 2 ? `<button class="btn copy-prompt" onclick="copyPrompt('${f.id}', '${field}', this)">คัดลอก</button>` : ''}

@@ -341,6 +341,39 @@ textarea::placeholder { color: var(--text3); }
   margin-top: 8px;
   flex-wrap: wrap;
 }
+.camera-details {
+  margin-top: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface2);
+}
+.camera-details summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 8px 10px;
+  color: var(--text2);
+  font-size: 12px;
+  cursor: pointer;
+  list-style-position: inside;
+}
+.camera-summary-value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text3);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.camera-details[open] summary { border-bottom: 1px solid var(--border); color: var(--accent); }
+.camera-details > .field-label,
+.camera-details > .camera-notes,
+.camera-details > textarea { margin-left: 10px; margin-right: 10px; }
+.camera-details > .field-label { margin-top: 10px; }
+.camera-details > textarea { width: calc(100% - 20px); margin-bottom: 10px; }
+.camera-details .camera-notes { margin-top: 6px; }
+.camera-tag { min-height: 36px; }
 .camera-tag {
   background: var(--surface3);
   border: 1px solid var(--border);
@@ -887,5 +920,6 @@ button.camera-tag { font: inherit; }
   #music-name { max-width: 160px; }
   input, textarea, select.toolbar-select { font-size: 16px; }
   .btn, .preview-btn, .camera-tag, .img-action-btn { min-height: 40px; }
+  .camera-details summary { min-height: 46px; }
   .image-action-overlay { opacity: 1; background: transparent; align-items: flex-end; padding-bottom: 8px; }
 }
