@@ -247,6 +247,7 @@ function renderAll() {
 function createCard(f, i) {
   const card = document.createElement('div');
   card.className   = 'frame-card';
+  card.classList.toggle('vertical-frame', currentRatio === 'ratio-vertical');
   card.dataset.id  = f.id;
   card.dataset.idx = i;
   card.draggable   = true;

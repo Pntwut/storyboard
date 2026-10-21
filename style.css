@@ -357,6 +357,23 @@ main {
 .board-compact .frame-body { display: none; }
 .board-compact .compact-duration { display: inline; }
 .board-compact .frame-card { cursor: grab; }
+.board-compact .frame-card.vertical-frame {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-areas: "header header" "image scene";
+  align-items: center;
+}
+.board-compact .vertical-frame .frame-header { grid-area: header; width: 100%; }
+.board-compact .vertical-frame .frame-scene-label { grid-area: scene; min-width: 0; }
+.board-compact .vertical-frame .frame-image-area {
+  grid-area: image;
+  justify-self: center;
+  width: min(100%, 150px);
+  height: auto;
+  max-height: none;
+  aspect-ratio: 9/16 !important;
+}
+.board-compact .vertical-frame .frame-image-area img { object-fit: contain; }
 
 .field-label {
   font-size: 10px;
@@ -998,6 +1015,7 @@ button.camera-tag { font: inherit; }
   #board, #board.cols-2, #board.cols-3, #board.cols-4 { grid-template-columns: minmax(0,1fr) !important; }
   #board.board-compact { grid-template-columns: minmax(0,1fr) !important; }
   .board-compact .frame-image-area { max-height: 150px; }
+  .board-compact .vertical-frame .frame-image-area { max-height: none; width: min(100%, 150px); }
   .frame-actions { gap: 2px; }
   .icon-btn { min-width: 38px; min-height: 38px; }
   .export-modal { min-width: 0; width: calc(100% - 24px); padding: 16px; max-height: 90dvh; overflow: auto; }
